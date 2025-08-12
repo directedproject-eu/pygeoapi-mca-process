@@ -1,0 +1,10 @@
+climada
+fiona
+gdal==3.6.2
+matplotlib
+numpy
+pandas
+pyarrow
+pyDOE2
+pyrepo-mcda
+tabulate
