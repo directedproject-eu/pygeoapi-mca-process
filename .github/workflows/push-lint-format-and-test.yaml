@@ -1,0 +1,48 @@
+name: "lint, format and test after push"
+concurrency:
+  group: "pygeoapi-mca-process-push-lint-and-test"
+  cancel-in-progress: true
+on:
+  # all pushes and PRs, but not tags
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+jobs:
+  lint-format-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+    -
+      name: Checkout Repository
+      uses: actions/checkout@v5
+    # -
+    #   name: Install uv
+    #   uses: astral-sh/setup-uv@v6
+    # -
+    #   name: Set up Python
+    #   run: uv python install
+    # -
+    #   name: Install the project
+    #   run: uv sync --locked --all-extras --dev
+    # -
+    #   name: run linter and formatter
+    #   run: |
+    #     uv run ruff check
+    #     uv run ruff check --select I
+    #     uv run ruff format --diff
+    # -
+    #   name: run tests
+    #   run: |
+    #     uv run pytest tests/
+    -
+      name: install dependencies
+      run: |
+        pip3 install -r requirements.txt
+        pip3 install ruff
+    -
+      name: run linter and formatter
+      run: |
+        ruff check
+        ruff check --select I
+        ruff format --diff
