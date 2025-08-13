@@ -2,48 +2,30 @@ import copy
 import logging
 from typing import Dict, List, Optional
 
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import matplotlib.ticker as mtick
-import matplotlib.lines as mlines
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+import matplotlib.lines as mlines
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
+
+# Utility functions
+from MCDMoutput import RanksOutput
+from pyrepo_mcda.additions import rank_preferences
+from pyrepo_mcda.compromise_rankings import (
+    copeland,
+)
 from pyrepo_mcda.mcda_methods import (
-    AHP,
     ARAS,
-    COCOSO,
     CODAS,
-    COPRAS,
     CRADIS,
-    EDAS,
-    MABAC,
-    MARCOS,
     MULTIMOORA,
-    MULTIMOORA_RS,
-    PROMETHEE_II,
-    PROSA_C,
     SAW,
     SPOTIS,
     TOPSIS,
     VIKOR,
-    VMCM,
-    WASPAS,
-    VIKOR_SMAA,
 )
-from pyrepo_mcda.compromise_rankings import (
-    copeland,
-    dominance_directed_graph,
-    rank_position_method,
-)
-from pyrepo_mcda.additions import rank_preferences
-from pyrepo_mcda import distance_metrics as dists
-from pyrepo_mcda import normalizations as norms
-from pyrepo_mcda import correlations as corrs
-from pyrepo_mcda import weighting_methods as mcda_weights
-
-# Utility functions
-from MCDMoutput import RanksOutput
 from utils import filter_dataframe
 
 # Define the MCDM ranking methods
@@ -116,17 +98,11 @@ class DecisionMatrix:
         self.unc_smpls_df = None
 
         # Sort the dm_df based on alt_cols, group_cols, and unc_cols
-        self.metrics_df = self.metrics_df.sort_values(
-            by=alt_cols + group_cols + unc_cols
-        )
+        self.metrics_df = self.metrics_df.sort_values(by=alt_cols + group_cols + unc_cols)
 
         # Create internal group weights
         if group_cols:
-            self.groups_df = (
-                self.metrics_df[self.group_cols]
-                .drop_duplicates()
-                .reset_index(drop=True)
-            )
+            self.groups_df = self.metrics_df[self.group_cols].drop_duplicates().reset_index(drop=True)
             self.groups_df.insert(
                 0,
                 "Group ID",
@@ -136,9 +112,7 @@ class DecisionMatrix:
             # Create internal group weights
             for group_col in group_cols:
                 temp_df = pd.DataFrame(metrics_df[group_col].drop_duplicates())
-                temp_df["Weight"] = (
-                    np.nan
-                )  # Initialize weight to NaN for each member of the group
+                temp_df["Weight"] = np.nan  # Initialize weight to NaN for each member of the group
 
                 # Populate the group weights if given
                 for idx, member in temp_df.iterrows():
@@ -150,9 +124,7 @@ class DecisionMatrix:
                         and isinstance(group_weights[group_col], dict)
                         and member_name in group_weights[group_col]
                     ):
-                        temp_df.at[idx, "Weight"] = group_weights[group_col][
-                            member_name
-                        ]
+                        temp_df.at[idx, "Weight"] = group_weights[group_col][member_name]
 
                 # Exclude 'ALL' members from count
                 temp_df = temp_df[temp_df[group_col] != "ALL"]
@@ -167,17 +139,13 @@ class DecisionMatrix:
                     remainder = 1 - sum_defined_weights
                     equal_weight = remainder / remaining_count
                     temp_df.loc[temp_df["Weight"].isna(), "Weight"] = equal_weight
-                    LOGGER.info(
-                        f"Remaining weights distributed equally among members of group column '{group_col}'."
-                    )
+                    LOGGER.info(f"Remaining weights distributed equally among members of group column '{group_col}'.")
 
                 self.group_weights[group_col] = temp_df
 
         # Get unique set of samples if unc_cols is provided and reset index
         if self.unc_cols:
-            self.unc_smpls_df = (
-                self.metrics_df[self.unc_cols].drop_duplicates().reset_index(drop=True)
-            )
+            self.unc_smpls_df = self.metrics_df[self.unc_cols].drop_duplicates().reset_index(drop=True)
             self.unc_smpls_df.insert(
                 0,
                 "Sample ID",
@@ -195,19 +163,13 @@ class DecisionMatrix:
         if not self.weights:
             # Allow for max to decimals for weights
             def custom_round(value):
-                decimal_count = (
-                    len(str(value).split(".")[1]) if "." in str(value) else 0
-                )
+                decimal_count = len(str(value).split(".")[1]) if "." in str(value) else 0
                 decimals = 2 if decimal_count >= 2 else 1
                 return round(value, decimals)
 
-            self.weights = {
-                crit: custom_round(1 / len(self.crit_cols)) for crit in self.crit_cols
-            }
+            self.weights = {crit: custom_round(1 / len(self.crit_cols)) for crit in self.crit_cols}
         # Check for duplicate rows
-        duplicates = self.metrics_df.duplicated(
-            subset=self.alt_cols + self.group_cols + self.unc_cols, keep=False
-        )
+        duplicates = self.metrics_df.duplicated(subset=self.alt_cols + self.group_cols + self.unc_cols, keep=False)
         if duplicates.any():
             LOGGER.info(self.metrics_df.loc[duplicates])
             LOGGER.info(self.alt_cols)
@@ -276,9 +238,7 @@ class DecisionMatrix:
         self.dm_df = self.dm_df.drop("_merge", axis=1)
         self.dm_df = pd.merge(
             self.dm_df,
-            self.metrics_df[
-                self.alt_cols + self.group_cols + self.unc_cols + self.crit_cols
-            ],
+            self.metrics_df[self.alt_cols + self.group_cols + self.unc_cols + self.crit_cols],
             on=self.alt_cols + self.group_cols + self.unc_cols,
             how="left",
         )
@@ -304,70 +264,42 @@ class DecisionMatrix:
         ]
 
         # Filter out rows where the specified column is ALL or nan
-        filt_dm_df = self.dm_df[
-            self.alt_cols + self.unc_cols + self.group_cols + self.crit_cols
-        ]
-        filt_dm_df = filt_dm_df[
-            ~filt_dm_df[piv_col].isin(["ALL"]) & filt_dm_df[piv_col].notna()
-        ]
+        filt_dm_df = self.dm_df[self.alt_cols + self.unc_cols + self.group_cols + self.crit_cols]
+        filt_dm_df = filt_dm_df[~filt_dm_df[piv_col].isin(["ALL"]) & filt_dm_df[piv_col].notna()]
 
-        crit_piv_df = filt_dm_df.pivot(
-            index=index_col, columns=piv_col, values=self.crit_cols
-        )
+        crit_piv_df = filt_dm_df.pivot(index=index_col, columns=piv_col, values=self.crit_cols)
 
         crit_piv_df = crit_piv_df.reset_index()
-        crit_piv_df.columns = [
-            f'{"_".join(col)}' if col[1] else f"{col[0]}" for col in crit_piv_df.columns
-        ]
+        crit_piv_df.columns = [f"{'_'.join(col)}" if col[1] else f"{col[0]}" for col in crit_piv_df.columns]
 
         # Step 3: Remove duplicates and create a copy of weights
         new_weights = copy.deepcopy(self.weights)
         new_crit_cats = {key: [] for key in self.crit_cats.keys()}
 
         group_values = list(filt_dm_df[piv_col].dropna().drop_duplicates())
-        new_objectives = copy.deepcopy(
-            self.objectives
-        )  # Initialize new objectives for pivoted criteria
+        new_objectives = copy.deepcopy(self.objectives)  # Initialize new objectives for pivoted criteria
 
         for crit_col in self.crit_cols:
-            new_crit_cols_temp = [
-                crit_col + "_" + group_value for group_value in group_values
-            ]
+            new_crit_cols_temp = [crit_col + "_" + group_value for group_value in group_values]
             temp_df = crit_piv_df[new_crit_cols_temp]
 
-            cat_crit = self.cat_crit_df[self.cat_crit_df["Criteria"].isin([crit_col])][
-                "Category"
-            ].values[0]
+            cat_crit = self.cat_crit_df[self.cat_crit_df["Criteria"].isin([crit_col])]["Category"].values[0]
 
             # Step 4: Check if all columns have the same values
             if temp_df.apply(lambda col: col.equals(temp_df.iloc[:, 0])).all():
-                LOGGER.info(
-                    f"{crit_col}: All columns have the same values. Retain the original name."
-                )
-                crit_piv_df = crit_piv_df.rename(
-                    columns={new_crit_cols_temp[0]: crit_col}
-                )
+                LOGGER.info(f"{crit_col}: All columns have the same values. Retain the original name.")
+                crit_piv_df = crit_piv_df.rename(columns={new_crit_cols_temp[0]: crit_col})
                 if len(new_crit_cols_temp) > 1:
                     crit_piv_df = crit_piv_df.drop(columns=new_crit_cols_temp[1:])
                 # Update cat crits
                 new_crit_cats[cat_crit].append(crit_col)
             else:
-                LOGGER.info(
-                    f"{crit_col}: Columns have different values. Reweight and introduce new criteria."
-                )
+                LOGGER.info(f"{crit_col}: Columns have different values. Reweight and introduce new criteria.")
                 for group_value in group_values:
                     idx = self.group_weights[piv_col][piv_col].isin([group_value])
                     group_weight = self.group_weights[piv_col]["Weight"][idx].values[0]
-                    new_weights.update(
-                        {
-                            crit_col
-                            + "_"
-                            + group_value: new_weights[crit_col] * group_weight
-                        }
-                    )
-                    new_objectives[crit_col + "_" + group_value] = self.objectives[
-                        crit_col
-                    ]
+                    new_weights.update({crit_col + "_" + group_value: new_weights[crit_col] * group_weight})
+                    new_objectives[crit_col + "_" + group_value] = self.objectives[crit_col]
 
                     # Update cat crits
                     new_crit_cats[cat_crit].append(crit_col + "_" + group_value)
@@ -376,27 +308,17 @@ class DecisionMatrix:
                 del new_objectives[crit_col]
 
         # Step 4 (continued): Reorder the dictionary as per crit_piv_df columns
-        new_weights = {
-            key: new_weights[key]
-            for key in crit_piv_df.columns
-            if key in new_weights.keys()
-        }
+        new_weights = {key: new_weights[key] for key in crit_piv_df.columns if key in new_weights.keys()}
 
         # Step 4 (continued): Reorder the dictionary as per crit_piv_df columns
-        new_objectives = {
-            key: new_objectives[key]
-            for key in crit_piv_df.columns
-            if key in new_objectives.keys()
-        }
+        new_objectives = {key: new_objectives[key] for key in crit_piv_df.columns if key in new_objectives.keys()}
 
         # Step 4 (continued): Reorder the dictionary as per crit_piv_df columns
         new_group_cols = [col for col in self.group_cols if col != piv_col]
         new_crit_cols = list(new_objectives.keys())
 
         # Step 5: Remove the group key from the group weights
-        new_group_weights = {
-            key: value for key, value in self.group_weights.items() if key != piv_col
-        }
+        new_group_weights = {key: value for key, value in self.group_weights.items() if key != piv_col}
 
         # Create a new DecisionMatrix instance with modified attributes
         new_self = DecisionMatrix(
@@ -445,9 +367,7 @@ class DecisionMatrix:
         new_dm_df = pd.DataFrame(columns=base_cols + self.crit_cols)
 
         # Apply constraints per group and state combo
-        for _, alt_group_df in (
-            dm_df[["Alternative ID", "Group ID"]].drop_duplicates().iterrows()
-        ):
+        for _, alt_group_df in dm_df[["Alternative ID", "Group ID"]].drop_duplicates().iterrows():
             # Filter the group and state
             sg_df = dm_df[
                 dm_df[["Alternative ID", "Group ID"]]
@@ -456,9 +376,7 @@ class DecisionMatrix:
             ]
 
             # Filter the dataframe based on the condition
-            filt_sg_df, _ = filter_dataframe(
-                sg_df, filter_conditions=condition, derived_columns=derived_columns
-            )
+            filt_sg_df, _ = filter_dataframe(sg_df, filter_conditions=condition, derived_columns=derived_columns)
 
             # Print the alternative and group that are all filtered out
             if filt_sg_df.empty:
@@ -523,9 +441,7 @@ class DecisionMatrix:
 
         if group_by_category:
             # Create a bar plot from the pivoted DataFrame
-            df = self.cat_crit_df.pivot(
-                index="Category", columns="Criteria", values="Weight"
-            )
+            df = self.cat_crit_df.pivot(index="Category", columns="Criteria", values="Weight")
             ax = df.plot(
                 kind="bar",
                 stacked=True,
@@ -593,9 +509,7 @@ class DecisionMatrix:
                     )
             ax.set_xlabel("Criteria", fontsize=12)
             # Set the x-axis labels to be truncated and tilted
-            ax.set_xticklabels(
-                [label[:10] for label in self.crit_df["Criteria"]], rotation=45
-            )
+            ax.set_xticklabels([label[:10] for label in self.crit_df["Criteria"]], rotation=45)
 
         ax.set_ylabel("Weight", fontsize=12)
         ax.set_axisbelow(True)
@@ -646,9 +560,7 @@ class DecisionMatrix:
         if "Sample ID" not in red_dm_df.columns:
             red_dm_df["Sample ID"] = "S1"
         # Pre-filter which sceanrio, groups and
-        red_dm_df, _ = filter_dataframe(
-            red_dm_df, filter_conditions=rank_filt, derived_columns=derived_columns
-        )
+        red_dm_df, _ = filter_dataframe(red_dm_df, filter_conditions=rank_filt, derived_columns=derived_columns)
 
         ## Create data frames to store data
         # Define base column
@@ -658,19 +570,13 @@ class DecisionMatrix:
         if isinstance(self.unc_smpls_df, pd.DataFrame):
             base_cols += list(self.unc_smpls_df.columns)
         # Alternatives not included
-        alt_exc_nan_df = pd.DataFrame(
-            columns=self.dm_df.columns
-        )  # To store nan alternatives
-        alt_exc_const_df = pd.DataFrame(
-            columns=base_cols + list(constraints.keys())
-        )  # To store nan alternatives
+        alt_exc_nan_df = pd.DataFrame(columns=self.dm_df.columns)  # To store nan alternatives
+        alt_exc_const_df = pd.DataFrame(columns=base_cols + list(constraints.keys()))  # To store nan alternatives
         # rank containers
         ranks_crit_df = pd.DataFrame(columns=base_cols + self.crit_cols)
         # ranks_mcdm_methods_df = pd.DataFrame(columns=base_cols + list(mcdm_methods.keys()))
         # ranks_comp_df = pd.DataFrame(columns=base_cols + list(comp_ranks.keys()))
-        ranks_MCDM_df = pd.DataFrame(
-            columns=base_cols + list(mcdm_methods.keys()) + list(comp_ranks.keys())
-        )
+        ranks_MCDM_df = pd.DataFrame(columns=base_cols + list(mcdm_methods.keys()) + list(comp_ranks.keys()))
 
         # Check if crit_cols contains any zero values
         if red_dm_df[self.crit_cols].isin([0]).any().any():
@@ -683,15 +589,10 @@ class DecisionMatrix:
                     )
 
         # Iterate through all pairs of 'Group ID' and 'Sample ID'
-        for _, group_scen_df in (
-            red_dm_df[["Group ID", "Sample ID"]].drop_duplicates().iterrows()
-        ):
-
+        for _, group_scen_df in red_dm_df[["Group ID", "Sample ID"]].drop_duplicates().iterrows():
             # Check if both columns exist
             sg_df = red_dm_df[
-                red_dm_df[["Group ID", "Sample ID"]]
-                .isin(group_scen_df[["Group ID", "Sample ID"]].values)
-                .all(axis=1)
+                red_dm_df[["Group ID", "Sample ID"]].isin(group_scen_df[["Group ID", "Sample ID"]].values).all(axis=1)
             ]
 
             # Store all not included alternatives
@@ -702,9 +603,7 @@ class DecisionMatrix:
                 if alt_exc_nan_df.empty:
                     alt_exc_nan_df = sg_df[nan_alt_rows]
                 else:
-                    alt_exc_nan_df = pd.concat(
-                        [alt_exc_nan_df, sg_df[nan_alt_rows]], ignore_index=True
-                    )
+                    alt_exc_nan_df = pd.concat([alt_exc_nan_df, sg_df[nan_alt_rows]], ignore_index=True)
                 sg_df.reset_index(drop=True, inplace=True)
                 nan_alt_rows.reset_index(drop=True, inplace=True)
                 sg_df = sg_df[~nan_alt_rows]
@@ -728,9 +627,7 @@ class DecisionMatrix:
                 alt_exc_const_df = pd.concat(
                     [
                         alt_exc_const_df,
-                        boolean_df[
-                            ~(boolean_df[constraints.keys()] == True).all(axis=1)
-                        ],
+                        boolean_df[~(boolean_df[constraints.keys()] == True).all(axis=1)],
                     ],
                     ignore_index=True,
                 )
@@ -755,13 +652,11 @@ class DecisionMatrix:
             matrix = matrix + np.random.rand(*matrix.shape) * 1e-4
 
             if matrix.any():
-
                 # Temp container
                 temp_ranks_MCDM_df = sg_df[base_cols].copy()
 
                 ## Calc ranking for each MCDM method
                 for pipe in mcdm_methods.keys():
-
                     # Calculate the preference values of alternatives
                     if not isinstance(mcdm_methods[pipe], SPOTIS):
                         pref = mcdm_methods[pipe](matrix, weights, types)
@@ -775,29 +670,19 @@ class DecisionMatrix:
 
                     # Generate ranking of alternatives by sorting alternatives descendingly according to the TOPSIS algorithm (reverse = True means sorting in descending order) according to preference values
                     if isinstance(mcdm_methods[pipe], (MULTIMOORA)):
-                        temp_ranks_MCDM_df.loc[~nan_alt_rows, pipe] = mcdm_methods[
-                            pipe
-                        ](
+                        temp_ranks_MCDM_df.loc[~nan_alt_rows, pipe] = mcdm_methods[pipe](
                             matrix, weights, types
                         )  # Mu;timoora includes ranker
                     elif isinstance(mcdm_methods[pipe], (VIKOR, SPOTIS)):
-                        temp_ranks_MCDM_df.loc[~nan_alt_rows, pipe] = rank_preferences(
-                            pref, reverse=False
-                        )
+                        temp_ranks_MCDM_df.loc[~nan_alt_rows, pipe] = rank_preferences(pref, reverse=False)
                     else:
-                        temp_ranks_MCDM_df.loc[~nan_alt_rows, pipe] = rank_preferences(
-                            pref, reverse=True
-                        )
+                        temp_ranks_MCDM_df.loc[~nan_alt_rows, pipe] = rank_preferences(pref, reverse=True)
 
                 # Calc compromised ranking
                 if comp_ranks:
                     for comp_rank in comp_ranks.keys():
-                        temp_ranks_MCDM_df.loc[~nan_alt_rows, comp_rank] = comp_ranks[
-                            comp_rank
-                        ](
-                            temp_ranks_MCDM_df.loc[
-                                ~nan_alt_rows, mcdm_methods.keys()
-                            ].to_numpy()
+                        temp_ranks_MCDM_df.loc[~nan_alt_rows, comp_rank] = comp_ranks[comp_rank](
+                            temp_ranks_MCDM_df.loc[~nan_alt_rows, mcdm_methods.keys()].to_numpy()
                         )
 
                 # Populate the containers
@@ -809,15 +694,11 @@ class DecisionMatrix:
                 elif ranks_MCDM_df.empty:
                     ranks_MCDM_df = temp_ranks_MCDM_df
                 else:
-                    ranks_MCDM_df = pd.concat(
-                        [ranks_MCDM_df, temp_ranks_MCDM_df], ignore_index=True
-                    )
+                    ranks_MCDM_df = pd.concat([ranks_MCDM_df, temp_ranks_MCDM_df], ignore_index=True)
                 ranks_crit_df = pd.concat(
                     [
                         ranks_crit_df,
-                        ranks_columns(
-                            sg_df, columns=self.crit_cols, objectives=self.objectives
-                        ),
+                        ranks_columns(sg_df, columns=self.crit_cols, objectives=self.objectives),
                     ],
                     ignore_index=True,
                 )  # Calc criteria ranking
@@ -894,35 +775,28 @@ class DecisionMatrix:
         # Check if a category criteria dictionary is provided
         if cat_crit_dict:
             # If so, create a group dataframe based on the category criteria
-            crit_group_df = cat_crit_df[
-                cat_crit_df[cat_crit_dict.keys()]
-                .isin(cat_crit_dict.values())
-                .all(axis=1)
-            ][[crit_tag, "Weight"]]
+            crit_group_df = cat_crit_df[cat_crit_df[cat_crit_dict.keys()].isin(cat_crit_dict.values()).all(axis=1)][
+                [crit_tag, "Weight"]
+            ]
             # Create a non-group dataframe for the remaining criteria
             crit_non_group_df = cat_crit_df[
-                ~cat_crit_df[cat_crit_dict.keys()]
-                .isin(cat_crit_dict.values())
-                .all(axis=1)
+                ~cat_crit_df[cat_crit_dict.keys()].isin(cat_crit_dict.values()).all(axis=1)
             ][[crit_tag, "Weight"]]
             # store the items in xlabel as strings
             xlabel = list(cat_crit_dict.items())[0][1]
         else:
             # If not, create a group dataframe based on the criteria columns dictionary
-            crit_group_df = crit_df[
-                crit_df[crit_tag].isin(list(crit_cols_dict.items())[0][1])
-            ][[crit_tag, "Weight"]]
+            crit_group_df = crit_df[crit_df[crit_tag].isin(list(crit_cols_dict.items())[0][1])][[crit_tag, "Weight"]]
             # Create a non-group dataframe for the remaining criteria
-            crit_non_group_df = crit_df[
-                ~crit_df[crit_tag].isin(list(crit_cols_dict.items())[0][1])
-            ][[crit_tag, "Weight"]]
+            crit_non_group_df = crit_df[~crit_df[crit_tag].isin(list(crit_cols_dict.items())[0][1])][
+                [crit_tag, "Weight"]
+            ]
             xlabel = list(crit_cols_dict.items())[0][0]
 
         # Create a dataframe to store the sensitivity of the weights values
         imp_sens_df = pd.DataFrame(
             index=imp_tot,
-            columns=list(crit_group_df[crit_tag].unique())
-            + list(crit_non_group_df[crit_tag].unique()),
+            columns=list(crit_group_df[crit_tag].unique()) + list(crit_non_group_df[crit_tag].unique()),
         )
 
         # Iterate over the total weights values
@@ -930,24 +804,16 @@ class DecisionMatrix:
             # Create a new group weights dataframe
             new_group_weights = crit_group_df.copy()
             # Update the weights values based on the current total weights
-            new_group_weights["Weight"] = (
-                imp * crit_group_df["Weight"] / crit_group_df["Weight"].sum()
-            )
+            new_group_weights["Weight"] = imp * crit_group_df["Weight"] / crit_group_df["Weight"].sum()
             # Create a new non-group weights dataframe
             new_non_group_weights = crit_non_group_df.copy()
             # Update the weights values based on the current total weights
             new_non_group_weights["Weight"] = (
-                (1 - imp)
-                * crit_non_group_df["Weight"]
-                / crit_non_group_df["Weight"].sum()
+                (1 - imp) * crit_non_group_df["Weight"] / crit_non_group_df["Weight"].sum()
             )
             # Update the sensitivity dataframe with the new weights values
-            imp_sens_df.loc[imp, new_group_weights[crit_tag]] = new_group_weights[
-                "Weight"
-            ].values
-            imp_sens_df.loc[imp, new_non_group_weights[crit_tag]] = (
-                new_non_group_weights["Weight"].values
-            )
+            imp_sens_df.loc[imp, new_group_weights[crit_tag]] = new_group_weights["Weight"].values
+            imp_sens_df.loc[imp, new_non_group_weights[crit_tag]] = new_non_group_weights["Weight"].values
 
         # Check if compromise ranks are provided
         if comp_ranks:
@@ -955,9 +821,7 @@ class DecisionMatrix:
             rank_method_name = list(comp_ranks.keys())[0]
         elif len(mcdm_methods) != 1:
             # If not, check if only one MCDM method is provided
-            LOGGER.info(
-                "You need to specify a compromise ranking method or only one MCDM method"
-            )
+            LOGGER.info("You need to specify a compromise ranking method or only one MCDM method")
         else:
             # If only one MCDM method is provided, get the method name
             rank_method_name = list(mcdm_methods.keys())[0]
@@ -976,38 +840,28 @@ class DecisionMatrix:
                 weights=new_weights,
             )
             # Calculate the rankings with the temporary decision matrix
-            rank_obj_temp = dm_temp.calc_rankings(
-                mcdm_methods=mcdm_methods, comp_ranks=comp_ranks, **ranking_args
-            )
+            rank_obj_temp = dm_temp.calc_rankings(mcdm_methods=mcdm_methods, comp_ranks=comp_ranks, **ranking_args)
 
             # Check if the rank object contains more than one group or sample
             if (
                 len(rank_obj_temp.ranks_df["Group ID"].unique()) != 1
                 or len(rank_obj_temp.ranks_df["Sample ID"].unique()) != 1
             ):
-                raise ValueError(
-                    "The rank object contains more than one group or sample"
-                )
+                raise ValueError("The rank object contains more than one group or sample")
 
             # Store the rankings in a results dataframe
             if idx == 0:
                 # If it's the first row, create a new dataframe
-                ranks_imp_df = rank_obj_temp.ranks_df[
-                    [alt_tag, rank_method_name]
-                ].copy()
+                ranks_imp_df = rank_obj_temp.ranks_df[[alt_tag, rank_method_name]].copy()
                 ranks_imp_df["Weight"] = row[0]
             else:
                 # If it's not the first row, create a temporary dataframe and append it to the results dataframe
-                ranks_imp_df_temp = rank_obj_temp.ranks_df[
-                    [alt_tag, rank_method_name]
-                ].copy()
+                ranks_imp_df_temp = rank_obj_temp.ranks_df[[alt_tag, rank_method_name]].copy()
                 ranks_imp_df_temp["Weight"] = row[0]
                 ranks_imp_df = pd.concat([ranks_imp_df, ranks_imp_df_temp], axis=0)
 
         # Plot the rankings at the highest weights
-        plot_rank_sens_weights(
-            ranks_imp_df, alt_tag, rank_method_name, xlabel, order_by="highest"
-        )
+        plot_rank_sens_weights(ranks_imp_df, alt_tag, rank_method_name, xlabel, order_by="highest")
         # Plot the weights sensitivity dataframe
         plot_crit_weights_sensitivity(imp_sens_df, xlabel)
         # Plot the rankings at the lowest weights
@@ -1042,9 +896,7 @@ def ranks_columns(df, columns, objectives):
     # Iterate over the columns to be ranked
     for col in columns:
         # Rank the column based on the specified objective
-        ranked_df[col] = ranked_df[col].rank(
-            method="min", ascending=FUNCTION_MAP[str(objectives[col])]
-        )
+        ranked_df[col] = ranked_df[col].rank(method="min", ascending=FUNCTION_MAP[str(objectives[col])])
         # Convert the ranks to integers
         ranked_df[col] = ranked_df[col].astype(int)
 
@@ -1062,9 +914,7 @@ def plot_crit_weights_sensitivity(imp_sens_df, xlabel):
     ax.set_ylabel("Criteria Weight", fontsize=14)
 
     # Set x-axis ticks to be in percentage format with no decimals
-    ax.set_xticklabels(
-        [f"{int(tick*100)}%" for tick in imp_sens_df.index], rotation=0, fontsize=12
-    )
+    ax.set_xticklabels([f"{int(tick * 100)}%" for tick in imp_sens_df.index], rotation=0, fontsize=12)
 
     # Format the y-axis labels to be in percentage format with no decimals
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1.0, decimals=0))
@@ -1077,13 +927,9 @@ def plot_crit_weights_sensitivity(imp_sens_df, xlabel):
     plt.show()
 
 
-def plot_rank_sens_weights(
-    ranks_imp_df, alt_tag, rank_method_name, xlabel, order_by="highest"
-):
+def plot_rank_sens_weights(ranks_imp_df, alt_tag, rank_method_name, xlabel, order_by="highest"):
     # Pivot the DataFrame to make each alternative a column
-    plot_df = ranks_imp_df.pivot(
-        index="Weight", columns=alt_tag, values=rank_method_name
-    )
+    plot_df = ranks_imp_df.pivot(index="Weight", columns=alt_tag, values=rank_method_name)
 
     # Define a color map
     color_map = cm.get_cmap("tab10", len(plot_df.columns))
@@ -1134,7 +980,7 @@ def plot_rank_sens_weights(
             [],
             [],
             color=color_dict[col],
-            label=f'{col} ({int(plot_df.iloc[-1 if order_by == "highest" else 0, i])})',
+            label=f"{col} ({int(plot_df.iloc[-1 if order_by == 'highest' else 0, i])})",
         )
         for i, col in enumerate(plot_df.columns)
     ]
@@ -1145,7 +991,7 @@ def plot_rank_sens_weights(
         borderaxespad=0.0,
         edgecolor="black",
         fontsize=14,
-        title=f'Rank at {int(plot_df.index[-1 if order_by == "highest" else 0]*100)}%',
+        title=f"Rank at {int(plot_df.index[-1 if order_by == 'highest' else 0] * 100)}%",
     )
 
     # Show the plot

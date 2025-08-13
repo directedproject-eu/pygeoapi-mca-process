@@ -1,14 +1,14 @@
 import json
 import logging
 import os
+import sys
 from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pyDOE2 import lhs
-
-# Assuming DecisionMatrix is a class you have defined elsewhere
+from config import CONFIG
 from DecisionMatrix import DecisionMatrix
+from pyDOE2 import lhs
 
 # Constants
 ALT_COL = "measure"
@@ -18,13 +18,18 @@ COST_KW = "cost"
 N_SAMPLES_DEFAULT = 360
 
 # Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format="[%(asctime)s | %(name)s::%(module)s.py:%(lineno)d | %(process)d] %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
 def load_json_data(file_path: Optional[str] = None, json_str: Optional[str] = None) -> Union[Dict, List]:
     """Load JSON data from a file or a string."""
     if file_path:
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             return json.load(file)
     elif json_str:
         return json.loads(json_str)
@@ -68,7 +73,9 @@ def get_ranks(config: Dict) -> str:
 
         dm_groups = dm.pivot_and_reweight_criteria(piv_col="group")
         mcdm_ranks = dm_groups.calc_rankings(constraints=constraints).ranks_MCDM_df
-        ranks = mcdm_ranks.rename(columns={"copeland": "rank"})[["measure", "rank"]].set_index("measure")["rank"].to_json()
+        ranks = (
+            mcdm_ranks.rename(columns={"copeland": "rank"})[["measure", "rank"]].set_index("measure")["rank"].to_json()
+        )
 
         return ranks
     except Exception as e:
@@ -125,20 +132,31 @@ def get_sensitivity(config: Dict) -> str:
 
 def main():
     logger.info("Start running MCA Roskilde process.")
-    config = os.getenv("CONFIG")
-    mode = os.getenv("MODE", "ranks")
+    input_str = os.getenv("PYGEOAPI_K8S_MANAGER_INPUTS")
+    try:
+        input_dict = json.loads(input_str)
+    except json.JSONDecodeError as err:
+        logger.error(f"Could not parse process inputs '{input_str}'. Error: '{err}'")
+        raise
+    except Exception as err:
+        logger.error(f"Could not parse process inputs '{input_str}'. Error: '{err}'")
+        raise
+    weights = input_dict.get("weights")
+    if weights is not None:
+        CONFIG["weights"] = weights
+        # FIXME: check weights
+    mode = input_dict.get("mode", "ranks")
 
-    config = load_json_data(json_str=config) if config.startswith("{") else load_json_data(file_path=config)
-
-    if mode == 'ranks':
-        ranks = get_ranks(config)
-        print(ranks)
-    elif mode == 'sensitivity':
-        sensitivity = get_sensitivity(config)
-        print(sensitivity)
+    if mode == "ranks":
+        result = get_ranks(CONFIG)
+    elif mode == "sensitivity":
+        result = get_sensitivity(CONFIG)
     else:
         raise ValueError("Invalid command specified in configuration.")
+    logger.info("PYGEOAPI_K8S_MANAGER_RESULT_MIMETYPE:application/json")
+    process_id = os.getenv("PYGEOAPI_PROCESS_ID", "process-id-not-defined-in-env")
+    logger.info(f'PYGEOAPI_K8S_MANAGER_RESULT_START\n{{"id":"{process_id}","value":{json.dumps(result)}}}')
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.WARNING)
     main()

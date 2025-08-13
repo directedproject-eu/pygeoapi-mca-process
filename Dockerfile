@@ -23,6 +23,4 @@ RUN pip install -r requirements.txt
 
 COPY mcdm ./mcdm
 
-COPY test_data.json ./test_data.json
-
 ENTRYPOINT [ "python", "/app/mcdm/mca_roskilde.py"]
