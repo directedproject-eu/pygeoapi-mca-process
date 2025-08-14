@@ -67,36 +67,17 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_TOKEN }}
     # -
-    #   name: Install uv
-    #   uses: astral-sh/setup-uv@v6
-    # -
-    #   name: Set up Python
-    #   run: uv python install
-    # -
-    #   name: Install the project
-    #   run: uv sync --locked --all-extras --dev
-    # -
-    #   name: run linter and formatter
+    #   name: install requirements
     #   run: |
-    #     uv run ruff check
-    #     uv run ruff check --select I
-    #     uv run ruff format --diff
+    #     sudo apt-get update && sudo apt-get -y install gdal-bin libgdal-dev
+    #     pip3 install -r requirements-linting.txt
+    #     pip3 install ruff
     # -
-    #   name: run tests
+    #   name: run ruff
     #   run: |
-    #     uv run pytest tests/
-    -
-      name: install requirements
-      run: |
-        sudo apt-get update && sudo apt-get -y install gdal-bin libgdal-dev
-        pip3 install -r requirements.txt
-        pip3 install ruff
-    -
-      name: run ruff
-      run: |
-        ruff check
-        ruff check --select I
-        ruff format --diff
+    #     ruff check
+    #     ruff check --select I
+    #     ruff format --diff
     -
       name: Build and push Docker image
       uses: docker/build-push-action@v6

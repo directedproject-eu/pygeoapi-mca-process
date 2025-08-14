@@ -1,6 +1,6 @@
 climada
 fiona
-gdal==3.6.2
+gdal==3.4.1
 matplotlib
 numpy>=2.0.0
 pandas

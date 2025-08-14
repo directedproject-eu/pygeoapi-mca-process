@@ -1,0 +1,35 @@
+name: "lint and format"
+concurrency:
+  group: "pygeoapi-mca-process-lint-and-format"
+  cancel-in-progress: true
+on:
+  # all pushes and PRs, but not tags
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+jobs:
+  lint-format-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+    -
+      name: Checkout Repository
+      uses: actions/checkout@v5
+    -
+      name: Set up Python 3.11
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.11"
+    -
+      name: install dependencies
+      run: |
+        sudo apt-get update && sudo apt-get -y install gdal-bin libgdal-dev
+        pip3 install -r requirements-linting.txt
+        pip3 install ruff
+    -
+      name: run linter and formatter
+      run: |
+        ruff check
+        ruff check --select I
+        ruff format --diff
