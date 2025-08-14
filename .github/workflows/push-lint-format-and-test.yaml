@@ -38,6 +38,7 @@ jobs:
     -
       name: install dependencies
       run: |
+        sudo apt-get update && sudo apt-get -y install gdal-bin libgdal-dev
         pip3 install -r requirements.txt
         pip3 install ruff
     -
