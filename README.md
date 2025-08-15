@@ -4,13 +4,13 @@ Multi-criteria analysis (MCA) process for pygeoapi implemented using CLIMADA
 Build the Docker image:
 
 ```shell
-docker build . -t directed/mca-roskilde:latest
+docker build . -t 52north/directed-mca-process:latest
 ```
 
 Run the Docker image:
 
 ```shell
-docker run directed/mca-roskilde:latest
+docker run 52north/directed-mca-process:latest
 ```
 
 Trigger async execution

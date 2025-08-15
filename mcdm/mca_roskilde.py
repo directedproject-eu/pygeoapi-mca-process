@@ -141,21 +141,47 @@ def main():
     except Exception as err:
         logger.error(f"Could not parse process inputs '{input_str}'. Error: '{err}'")
         raise
+
     weights = input_dict.get("weights")
     if weights is not None:
+        VALID_KEYS = ["measure net cost", "averted risk_aai", "approval", "feasability", "durability",
+                      "externalities", "implementation time"]
+        if not isinstance(weights, dict):
+            msg = f"'weights' has to be of type dict, but is of type '{type(weights)}'"
+            logger.error(msg)
+            raise TypeError(msg)
+        for k, v in weights.items():
+            if k not in VALID_KEYS:
+                msg = f"The key '{k}' is not valid. Valid keys are: {VALID_KEYS}"
+                logger.error(msg)
+                raise ValueError(msg)
+            if not isinstance(v, (float, int)):
+                msg = f"The value '{v}' has to be of numeric type, but is of type '{type(v)}'"
+                logger.error(msg)
+                raise ValueError(msg)
         CONFIG["weights"] = weights
-        # FIXME: check weights
+        logger.info(f"Weights were provided in the request. Config: {CONFIG}")
+    else:
+        logger.info(f"No weights were provided in the request, using default weights. Config: {CONFIG}")
+
     mode = input_dict.get("mode", "ranks")
+    VALID_MODES = ["ranks", "sensitivity"]
+    if mode not in VALID_MODES:
+        msg = f"The mode '{mode}' is not valid. Valid modes are: {VALID_MODES}"
+        logger.error(msg)
+        raise ValueError(msg)
 
     if mode == "ranks":
         result = get_ranks(CONFIG)
     elif mode == "sensitivity":
         result = get_sensitivity(CONFIG)
     else:
-        raise ValueError("Invalid command specified in configuration.")
+        msg = "Invalid command specified in configuration."
+        logger.error(msg)
+        raise ValueError(msg)
     logger.info("PYGEOAPI_K8S_MANAGER_RESULT_MIMETYPE:application/json")
     process_id = os.getenv("PYGEOAPI_PROCESS_ID", "process-id-not-defined-in-env")
-    logger.info(f'PYGEOAPI_K8S_MANAGER_RESULT_START\n{{"id":"{process_id}","value":{json.dumps(result)}}}')
+    logger.info(f'PYGEOAPI_K8S_MANAGER_RESULT_START\n{{"id":"{process_id}","value":{result}}}')
 
 
 if __name__ == "__main__":
