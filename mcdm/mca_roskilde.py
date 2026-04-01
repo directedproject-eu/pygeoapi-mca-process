@@ -106,7 +106,7 @@ def get_sensitivity(config: Dict) -> str:
         all_ranks = []
 
         for i in range(n_samples):
-            weights = {k: v for k, v in zip(weights.keys(), weight_samples[i])}
+            weights = {k: v for k, v in zip(weights.keys(), weight_samples[i], strict=True)}
             dm = DecisionMatrix(
                 metrics_df=decision_matrix,
                 objectives=objectives,

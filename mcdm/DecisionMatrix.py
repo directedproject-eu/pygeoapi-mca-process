@@ -160,7 +160,7 @@ class DecisionMatrix:
             #     if unc_col not in self.unc_var_prob_dist.keys():
             #         outcomes = list(self.unc_smpls_df[unc_col].drop_duplicates().values)
             #         probabilities = np.ones(len(outcomes)) / len(outcomes)
-            #         self.unc_var_prob_dist[unc_col] = dict(zip(outcomes, probabilities))
+            #         self.unc_var_prob_dist[unc_col] = dict(zip(outcomes, probabilities, strict=True))
 
         # Calculate criteria weights if not provided
         # Assumes equal weights if not provided
@@ -443,7 +443,7 @@ class DecisionMatrix:
         colors = colors[0 : len(criteria)]
 
         # Make colors for each criteria and store in dictionary
-        criteria_colors = dict(zip(criteria, colors))
+        criteria_colors = dict(zip(criteria, colors, strict=True))
 
         if group_by_category:
             # Create a bar plot from the pivoted DataFrame
