@@ -47,9 +47,9 @@ class DecisionMatrix:
         alt_cols: List[str],
         crit_cols: List[str],
         weights: Optional[Dict[str, float]] = None,
-        group_cols: Optional[List[str]] = [],
+        group_cols: Optional[List[str]] = None,
         group_weights: Optional[Dict[str, float]] = None,
-        unc_cols: Optional[List[str]] = [],
+        unc_cols: Optional[List[str]] = None,
         unc_var_prob_dist: Optional[Dict[str, object]] = None,
         crit_cats: Optional[Dict[str, List[str]]] = None,
     ):
@@ -76,6 +76,10 @@ class DecisionMatrix:
         - crit_cats : Dict[str, List[str]], optional
             Dictionary of categorized criteria. Defaults to an empty dictionary.
         """
+        if group_cols is None:
+            group_cols = []
+        if unc_cols is None:
+            unc_cols = []
 
         # Assign input parameters to class attributes as copies
         self.metrics_df = metrics_df.copy()
@@ -286,7 +290,7 @@ class DecisionMatrix:
             cat_crit = self.cat_crit_df[self.cat_crit_df["Criteria"].isin([crit_col])]["Category"].values[0]
 
             # Step 4: Check if all columns have the same values
-            if temp_df.apply(lambda col: col.equals(temp_df.iloc[:, 0])).all():
+            if (temp_df.values == temp_df.iloc[:, [0]].values).all():
                 LOGGER.info(f"{crit_col}: All columns have the same values. Retain the original name.")
                 crit_piv_df = crit_piv_df.rename(columns={new_crit_cols_temp[0]: crit_col})
                 if len(new_crit_cols_temp) > 1:
@@ -337,7 +341,7 @@ class DecisionMatrix:
 
         return new_self
 
-    def mean_based_criteria(self, condition={}, derived_columns=None):
+    def mean_based_criteria(self, condition=None, derived_columns=None):
         """
         Apply criteria based on mean values of uncertain variables to the given data
         and generate a new instance of DecisionMatrix.
@@ -349,6 +353,8 @@ class DecisionMatrix:
         Returns:
         - new_dm (DecisionMatrix): New instance of DecisionMatrix with updated criteria.
         """
+        if condition is None:
+            condition = {}
 
         # Create a copy of the decision matrix DataFrame
         dm_df = self.dm_df.copy()
@@ -521,10 +527,10 @@ class DecisionMatrix:
 
     def calc_rankings(
         self,
-        mcdm_methods=MCDM_DEFAULT,
-        comp_ranks=COMP_DEFAULT,
-        constraints={},
-        rank_filt={},
+        mcdm_methods=None,
+        comp_ranks=None,
+        constraints=None,
+        rank_filt=None,
         derived_columns=None,
     ):
         """
@@ -546,6 +552,14 @@ class DecisionMatrix:
         - ranks_output: RanksOutput
             An instance of the RanksOutput class containing the rankings.
         """
+        if constraints is None:
+            constraints = {}
+        if rank_filt is None:
+            rank_filt = {}
+        if mcdm_methods is None:
+            mcdm_methods = MCDM_DEFAULT
+        if comp_ranks is None:
+            comp_ranks = COMP_DEFAULT
 
         # provide criteria weights in array numpy.darray. All weights must sum to 1.
         weights = np.array([self.weights[crit_col] for crit_col in self.crit_cols])
@@ -627,7 +641,7 @@ class DecisionMatrix:
                 alt_exc_const_df = pd.concat(
                     [
                         alt_exc_const_df,
-                        boolean_df[~(boolean_df[constraints.keys()] == True).all(axis=1)],
+                        boolean_df[~(boolean_df[constraints.keys()]).all(axis=1)],
                     ],
                     ignore_index=True,
                 )
@@ -732,10 +746,10 @@ class DecisionMatrix:
     def calc_imprt_sensitivity(
         self,
         mcdm_methods,
-        comp_ranks={},
-        crit_cols_dict={},
-        cat_crit_dict={},
-        imp_tot=np.linspace(0, 1, 11),
+        comp_ranks=None,
+        crit_cols_dict=None,
+        cat_crit_dict=None,
+        imp_tot=None,
         crit_tag="Criteria",
         alt_tag="Alternative ID",
         **ranking_args,
@@ -767,6 +781,14 @@ class DecisionMatrix:
         - imp_sens_df (pd.DataFrame):
             A DataFrame containing the sensitivity of the weights values.
         """
+        if comp_ranks is None:
+            comp_ranks = {}
+        if crit_cols_dict is None:
+            crit_cols_dict = {}
+        if cat_crit_dict is None:
+            cat_crit_dict = {}
+        if imp_tot is None:
+            imp_tot = np.linspace(0, 1, 11)
 
         # Get the criteria dataframe from the decision matrix object
         cat_crit_df = self.cat_crit_df
@@ -984,7 +1006,7 @@ def plot_rank_sens_weights(ranks_imp_df, alt_tag, rank_method_name, xlabel, orde
         )
         for i, col in enumerate(plot_df.columns)
     ]
-    legend = plt.legend(
+    plt.legend(
         handles=lines,
         bbox_to_anchor=legend_loc,
         loc="center left",

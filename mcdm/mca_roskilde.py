@@ -144,8 +144,15 @@ def main():
 
     weights = input_dict.get("weights")
     if weights is not None:
-        VALID_KEYS = ["measure net cost", "averted risk_aai", "approval", "feasability", "durability",
-                      "externalities", "implementation time"]
+        VALID_KEYS = [
+            "measure net cost",
+            "averted risk_aai",
+            "approval",
+            "feasability",
+            "durability",
+            "externalities",
+            "implementation time",
+        ]
         if not isinstance(weights, dict):
             msg = f"'weights' has to be of type dict, but is of type '{type(weights)}'"
             logger.error(msg)

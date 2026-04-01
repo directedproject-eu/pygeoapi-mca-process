@@ -8,7 +8,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from climada.engine.cost_benefit import CostBenefit, risk_aai_agg, risk_rp_250
-from climada.engine.unsequa import InputVar, UncOutput
+from climada.engine.unsequa import CalcCostBenefit, InputVar, UncOutput
 
 # from IPython.display import clear_output
 
@@ -137,15 +137,22 @@ def expand_dataframe(original_df, values_list, new_column_name):
 def generate_metrics(
     haz_dict,
     ent_dict,
-    unc_func_dist_dict={},
-    groups=[],
-    risk_fncs_dict=RISK_FNCS_DICT,
+    unc_func_dist_dict=None,
+    groups=None,
+    risk_fncs_dict=None,
     n_samples=1,
     imp_time_depend=1.2,
     future_year=FUTURE_YEAR,
     current_year=CURRENT_YEAR,
     file_output=None,
 ):
+    if unc_func_dist_dict is None:
+        unc_func_dist_dict = {}
+    if groups is None:
+        groups = []
+    if risk_fncs_dict is None:
+        risk_fncs_dict = RISK_FNCS_DICT
+
     # Initialize a flag variable
     first_iteration = True
     aggr_sets = generate_unique_sets(groups)
@@ -192,7 +199,7 @@ def generate_metrics(
             aggr_combos_df = pd.DataFrame(["dummy"])
 
         ## Get the entity objects (only exposure effected) at each aggregation combination
-        for index, aggr_combo in aggr_combos_df.iterrows():
+        for _, aggr_combo in aggr_combos_df.iterrows():
             # Get the entities
             ent_today = copy.deepcopy(ent_dict[ent_key]["today"])
             ent_fut = copy.deepcopy(ent_dict[ent_key]["future"])
@@ -517,7 +524,7 @@ def generate_metrics(
         try:
             # Create the directory
             os.mkdir(path)
-        except:
+        except Exception:
             pass
 
         # Save the file as a csv with suffix groups

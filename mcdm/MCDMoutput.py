@@ -38,12 +38,15 @@ class RanksOutput:
         self,
         rank_type="MCDM",
         alt_name_col="Alternative ID",
-        disp_rnk_cols=[],
+        disp_rnk_cols=None,
         sort_by_col=None,
         transpose=False,
         group_id="G1",
         state_id="S1",
     ):
+        if disp_rnk_cols is None:
+            disp_rnk_cols = []
+
         # Get the disp_rnk_cols
         if disp_rnk_cols:
             legend_title = "Rank columns"
@@ -91,7 +94,7 @@ class RanksOutput:
         # Make rotation of the labels tilted 45 degrees and truncate to the first 10 characters
         ax.set_xticklabels([label[:10] for label in df.index], rotation=45)
         ax.tick_params(axis="both", labelsize=12)
-        y_ticks = ax.yaxis.get_major_ticks()
+        ax.yaxis.get_major_ticks()
         ax.set_ylim(0, len(list_rank) + 1)
 
         # Legend
@@ -112,7 +115,12 @@ class RanksOutput:
         plt.show()
 
     # make a print function
-    def print_rankings(self, disp_filt={}, disp_rnk_cols=[], rank_type="MCDM", sort_by_col=None):
+    def print_rankings(self, disp_filt=None, disp_rnk_cols=None, rank_type="MCDM", sort_by_col=None):
+        if disp_filt is None:
+            disp_filt = {}
+        if disp_rnk_cols is None:
+            disp_rnk_cols = []
+
         # Filter the rank columns
         filt_rank_df = filter_dataframe(self.ranks_df, disp_filt)[0]
 
